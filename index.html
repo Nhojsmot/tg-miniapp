@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Tracker Mini App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; margin: 0; font-family: sans-serif;
+            background-color: var(--tg-theme-bg-color, #fff);
+            color: var(--tg-theme-text-color, #000);
+        }
+        button {
+            padding: 15px 25px; font-size: 18px; cursor: pointer;
+            background-color: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none; border-radius: 8px;
+        }
+        #info { margin-top: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>系統檢測</h1>
+    <button id="btn">取得網路資訊並開啟地圖</button>
+    <div id="info"></div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+
+        document.getElementById('btn').addEventListener('click', async () => {
+            const infoDiv = document.getElementById('info');
+            infoDiv.innerText = "正在取得 IP...";
+
+            try {
+                // 1. 取得 IP (使用 ipify API)
+                const res = await fetch('https://api.ipify.org?format=json');
+                const data = await res.json();
+                const ip = data.ip;
+
+                infoDiv.innerText = "取得成功: " + ip;
+
+                // 2. 彈出 Telegram 原生提示框 (測試 SDK 是否運作)
+                tg.showAlert(`你的 IP 是: ${ip}\n即將跳轉至 Google Maps`);
+
+                // 3. 跳轉至 Google Maps
+                // 延遲兩秒讓使用者看清楚
+                setTimeout(() => {
+                    tg.openLink('https://www.google.com/maps');
+                }, 2000);
+
+            } catch (e) {
+                infoDiv.innerText = "發生錯誤，請重試。";
+            }
+        });
+    </script>
+</body>
+</html>
